@@ -44,6 +44,13 @@ int main(void) {
     for (int i=0; i<3; i++) {
       nrf_gpio_pin_toggle(LEDS[i]);
       nrf_delay_ms(500);
+      nrf_gpio_pin_toggle(LEDS[i]);
+      nrf_delay_ms(500);
+      nrf_gpio_pin_toggle(LEDS[i]);
+      nrf_delay_ms(500);
+      nrf_gpio_pin_toggle(LEDS[i]);
+      nrf_delay_ms(500);     
+
     }
   }
 }

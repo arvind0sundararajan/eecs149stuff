@@ -18,6 +18,7 @@
 #include "nrf_serial.h"
 
 #include "buckler.h"
+int myglobal = 0;
 
 int main(void) {
   ret_code_t error_code = NRF_SUCCESS;
@@ -32,7 +33,11 @@ int main(void) {
   uint32_t i = 0;
   while (1) {
     nrf_delay_ms(1000);
-    printf("Iteration: %lu\n", i++);
+    printf("%x\n", &i);
+    i++;
+    if (i>=5) {
+      myglobal += 1;
+    }
   }
 }
 

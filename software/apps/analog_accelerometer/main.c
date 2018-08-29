@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "app_error.h"
 #include "nrf.h"
@@ -58,6 +59,19 @@ int main (void) {
   channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL; // 0.6 Volt reference
   channel_config.gain = NRF_SAADC_GAIN1_6; // multiply incoming signal by (1/6)
 
+  // find the lsb size based on reference and gain of XL
+  double lsb_size = (3.6) /  (1 << 12);
+
+  double x_voltage = 0;
+  double y_voltage = 0;
+  double z_voltage = 0;
+
+  double x_g;
+  double y_g;
+  double z_g;
+
+  double theta;
+
   // specify input pin and initialize that ADC channel
   channel_config.pin_p = BUCKLER_ANALOG_ACCEL_X;
   error_code = nrfx_saadc_channel_init(X_CHANNEL, &channel_config);
@@ -82,9 +96,22 @@ int main (void) {
     nrf_saadc_value_t x_val = sample_value(X_CHANNEL);
     nrf_saadc_value_t y_val = sample_value(Y_CHANNEL);
     nrf_saadc_value_t z_val = sample_value(Z_CHANNEL);
+    //printf("x_val: %d\ty_val: %d\tz_val:%d\n", x_val, y_val, z_val);
+    //printf("lsb_size: %f\n", lsb_size);
+ 
+    x_voltage = x_val * lsb_size;
+    y_voltage = y_val * lsb_size;
+    z_voltage = z_val * lsb_size;
 
+    x_g = (x_voltage - 1.4) / 0.3976;
+    y_g = (y_voltage - 1.4) / 0.3976;
+    z_g = (z_voltage - 1.4) / 0.3976;
+
+    theta = atan(x_g/z_g);
+    theta = theta * 180 / 3.1415;
     // display results
-    printf("x: %d\ty: %d\tz:%d\n", x_val, y_val, z_val);
+    // printf("x: %f\ty: %f\tz:%f\n", x_g, y_g, z_g);
+    printf("theta: %f\n", theta);
     nrf_delay_ms(1);
   }
 }
