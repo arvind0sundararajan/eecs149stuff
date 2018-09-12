@@ -20,6 +20,8 @@ static node_t* linked_list = NULL;
 
 // insert item into list sorted by `timer_value`
 void list_insert_sorted(node_t* node) {
+    //disable interrupts
+    __disable_irq();
 
     // fault if given a NULL node
     if (node == NULL) {
@@ -54,6 +56,9 @@ void list_insert_sorted(node_t* node) {
             node->next = curr_node;
         }
     }
+
+    //enable interrupts
+    __enable_irq();
 }
 
 
@@ -64,15 +69,23 @@ node_t* list_get_first() {
 
 // remove and return first element
 node_t* list_remove_first() {
+    //disable interrupts
+    __disable_irq();
+
     node_t* head = linked_list;
     if (head != NULL) {
         linked_list = head->next;
     }
+    //enable interrupts
+    __enable_irq();
     return head;
 }
 
 // remove an arbitrary node if in list
 void list_remove(node_t* node) {
+    //disable interrupts
+    __disable_irq();
+
     // fault if given a NULL node
     if (node == NULL) {
         printf("\n***\nERROR: node passed into `list_remove_node` was NULL!!\n***\n");
@@ -103,6 +116,8 @@ void list_remove(node_t* node) {
             }
         }
     }
+    //enable interrupts
+    __enable_irq();
 }
 
 // print contents of list
