@@ -57,9 +57,11 @@ int main(void) {
   virtual_timer_start_repeated(1000, led0_toggle);
   virtual_timer_start_repeated(2000, led1_toggle);
 
+  int time_start = read_timer();
   while (1) {
-    // nrf_delay_ms(1000);
-    // printf("%lu\n", read_timer());
+    nrf_delay_ms(1000);
+    printf("%lu\n", read_timer());
+    list_print();
     // if ((read_timer()-start_time)>5000000){
     // 	if (!canceled){
     // 		virtual_timer_cancel(timer);

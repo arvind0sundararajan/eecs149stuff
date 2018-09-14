@@ -17,29 +17,52 @@ void TIMER4_IRQHandler(void) {
   NRF_TIMER4->EVENTS_COMPARE[1] = 0;
 
   // Place your interrupt handler code here
-  printf("Timer Fired!\n");
+  // printf("Timer Fired!\n");
+  // list_print();
   node_t * head = list_remove_first();
+  if (head == NULL) {
+    return;
+  }
   head ->timer_cb();
   if (head->timer_repeat != 0){
     head->timer_value = head->timer_value + head->timer_repeat;
     list_insert_sorted(head);
-    printf("saved\n");
+    // printf("Reinserting head: %x\n", &head);
   } else {
     free(head);
-    printf("freed\n");    
+    // printf("freed\n");    
   }
   // NRF_TIMER4->CC[1] = list_get_first()->timer_value;
 
   node_t* temp_head = list_get_first();
+  if (temp_head == NULL) {
+    return;
+  }
 
   // handle expired timers
   while (temp_head->timer_value < read_timer()) {
     // call the head cb
     temp_head->timer_cb();
 
-    list_remove_first();
-    free(temp_head);
+     temp_head = list_remove_first();
+     if (temp_head == NULL) {
+      return;
+    }
+
+    if (temp_head->timer_repeat != 0) {
+      temp_head->timer_value = temp_head->timer_value + temp_head->timer_repeat;
+
+      //add back in
+      list_insert_sorted(temp_head);
+      // printf("Reinserting expired timer: %x\n", &temp_head);
+
+    } else {
+      free(temp_head);
+    }
     temp_head = list_get_first();
+    if (temp_head == NULL) {
+      return;
+    }
   }
 
   NRF_TIMER4->CC[1] = temp_head->timer_value;
@@ -88,6 +111,7 @@ void virtual_timer_init(void) {
 // testing it over time.
 
 static uint32_t timer_start(uint32_t microseconds, virtual_timer_callback_t cb, bool repeated) {
+  __disable_irq();
 
   // Return a unique timer ID. (hint: What is guaranteed unique about the timer you have created?)
   node_t * current_node = malloc(sizeof(node_t));
@@ -104,6 +128,8 @@ static uint32_t timer_start(uint32_t microseconds, virtual_timer_callback_t cb, 
   // current_node->timer_value = microseconds;
 
   NRF_TIMER4->CC[1] = list_get_first()->timer_value;
+  list_print();
+  __enable_irq();
   return (current_node);
 }
 
@@ -123,6 +149,7 @@ uint32_t virtual_timer_start_repeated(uint32_t microseconds, virtual_timer_callb
 // Make sure you don't cause linked list consistency issues!
 // Do not forget to free removed timers.
 void virtual_timer_cancel(uint32_t timer_id) {
+  __disable_irq();
   node_t * current_node =(node_t*) timer_id;
   list_remove(current_node);
   printf("removed node\n");
@@ -130,5 +157,6 @@ void virtual_timer_cancel(uint32_t timer_id) {
     free(current_node);
   }
   NRF_TIMER4->CC[1] = list_get_first()->timer_value;
+  __enable_irq();
 }
 
