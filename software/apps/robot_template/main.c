@@ -115,6 +115,7 @@ int main(void) {
   bool bump_right;
   bool bump_left;
   bool bump_center;
+  bool redirect_integration = 1;
   int collision_direction;
 
   // loop forever, running state machine
@@ -173,7 +174,7 @@ int main(void) {
 		state = REDIRECT;
 		distance = 0;
 		angle = 0;
-		mpu9250_start_gyro_integration();
+		//mpu9250_start_gyro_integration();
 		left_wheel_encoder_prev = sensors.leftWheelEncoder;
 	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
 		kobukiDriveDirect(-100, -100);
@@ -212,7 +213,7 @@ int main(void) {
 		state = REDIRECT;
 		distance = 0;
 		angle = 0;
-		mpu9250_start_gyro_integration();
+		mpu9250_stop_gyro_integration();
 		left_wheel_encoder_prev = sensors.leftWheelEncoder;
 	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
 		kobukiDriveDirect(-100, -100);
@@ -239,6 +240,7 @@ int main(void) {
 		kobukiDriveDirect(0, 0);
 		angle = 0;
 		distance = 0;
+		redirect_integration = 1;
 		mpu9250_stop_gyro_integration();
 	} else if (distance < 0.1) {
 		kobukiDriveDirect(-100, -100);
@@ -248,6 +250,10 @@ int main(void) {
 	 	 snprintf(display_str, 16, "%f", distance);
           	display_write(display_str, DISPLAY_LINE_1);
 	} else if ((collision_direction == -1 || collision_direction == 0) && angle < 45) {
+		if (redirect_integration){ 
+			mpu9250_start_gyro_integration();
+			redirect_integration = 0;
+		}
 		kobukiDriveDirect(100, -100);
 		angle = abs(mpu9250_read_gyro_integration().z_axis);
 		display_write("TURNING", DISPLAY_LINE_0);
@@ -255,6 +261,10 @@ int main(void) {
 	        snprintf(display_angle, 16, "%f", angle);
 		display_write(display_angle, DISPLAY_LINE_1); 
 	} else if (collision_direction == 1 && angle < 45) {
+		if (redirect_integration){ 
+			mpu9250_start_gyro_integration();
+			redirect_integration = 0;
+		}
 		kobukiDriveDirect(-100, 100);
 		angle = abs(mpu9250_read_gyro_integration().z_axis);	
 		display_write("TURNING", DISPLAY_LINE_0);
@@ -264,6 +274,7 @@ int main(void) {
 	} else {
 		mpu9250_stop_gyro_integration();
 		state = DRIVING;
+		redirect_integration = 1;
 		kobukiDriveDirect(100, 100);
 		left_wheel_encoder_prev = sensors.leftWheelEncoder;
 	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
