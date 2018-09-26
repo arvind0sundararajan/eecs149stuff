@@ -34,9 +34,15 @@ typedef enum {
   DRIVING,
   TURN_CLOCKWISE,
   REDIRECT,
+  CLIFF,
+  REORIENT,
 } robot_state_t;
 
 float distance = 0;
+
+float x_accel = 0;
+float y_accel = 0;
+float z_accel = 0;
 
 static float measure_distance (uint16_t current_encoder, uint16_t previous_encoder) {
 	const float CONVERSION = 0.00008529;
@@ -54,6 +60,14 @@ static float measure_distance (uint16_t current_encoder, uint16_t previous_encod
 
 	return retval;
 
+}
+
+
+static void read_tilt(void) {
+	//your code here
+	mpu9250_measurement_t tilt = mpu9250_read_accelerometer();
+
+	printf(mpu9250_read_accelerometer());
 }
 
 int main(void) {
@@ -112,9 +126,18 @@ int main(void) {
   float left_wheel_encoder_curr = 0;
   float right_wheel_encoder_curr = 0;
   float angle = 0;
+  float newAngle;
+  float reorient_angle;
+  float cumulative_angle = 0;
+
   bool bump_right;
   bool bump_left;
   bool bump_center;
+
+  bool cliff_left;
+  bool cliff_right;
+  bool cliff_center;
+
   bool redirect_integration = 1;
   int collision_direction;
 
@@ -135,16 +158,22 @@ int main(void) {
     bump_right = sensors.bumps_wheelDrops.bumpRight;
     bump_left = sensors.bumps_wheelDrops.bumpLeft;
     bump_center = sensors.bumps_wheelDrops.bumpCenter;
+
+    cliff_left = sensors.cliffLeft;
+    cliff_right = sensors.cliffRight;
+    cliff_center = sensors.cliffCenter;
+
     // handle states
     switch(state) {
+
       case OFF: {
         // transition logic
         if (is_button_pressed(&sensors)) {
           state = DRIVING;
-	  kobukiDriveDirect(100, 100);
-	  left_wheel_encoder_prev = sensors.leftWheelEncoder;
-	  right_wheel_encoder_prev = sensors.rightWheelEncoder;
-	  //display_write("PRESSED_BUTTON_DRIVE", DISPLAY_LINE_0);
+		  kobukiDriveDirect(100, 100);
+		  left_wheel_encoder_prev = sensors.leftWheelEncoder;
+		  right_wheel_encoder_prev = sensors.rightWheelEncoder;
+		  //display_write("PRESSED_BUTTON_DRIVE", DISPLAY_LINE_0);
         } else {
           // perform state-specific actions here
           display_write("OFF", DISPLAY_LINE_0);
@@ -154,19 +183,29 @@ int main(void) {
       }
 
       case DRIVING: {
-	kobukiDriveDirect(100, 100);
+		kobukiDriveDirect(100, 100);
         // transition logic for part 1
         /*if (is_button_pressed(&sensors) || distance >= 1) {
-	  state = OFF;
-	  kobukiDriveDirect(0, 0);
-	  distance = 0;
-	  //display_write("PRESSED_BUTTON_DRIVE", DISPLAY_LINE_0);*/
+		  state = OFF;
+		  kobukiDriveDirect(0, 0);
+		  distance = 0;
+		  //display_write("PRESSED_BUTTON_DRIVE", DISPLAY_LINE_0);*/
 	if (is_button_pressed(&sensors)){
 		state = OFF;
 		kobukiDriveDirect(0, 0);
 		distance = 0;
 		angle = 0;
-	} else if (bump_left || bump_right || bump_center){
+	} else if (cliff_center || cliff_left || cliff_right) {
+		// reached a cliff
+		// stop driving.
+		state = CLIFF;
+		kobukiDriveDirect(0, 0);
+
+		//reset the distance variable
+		distance = 0;
+	}
+
+	else if (bump_left || bump_right || bump_center){
 		display_write("REDIRECT", DISPLAY_LINE_0);
 		if (bump_left) collision_direction = -1;
 		if (bump_center) collision_direction = 0;
@@ -179,112 +218,203 @@ int main(void) {
 	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
 		kobukiDriveDirect(-100, -100);
 	} else if (distance >= 0.5) {
-		state = TURN_CLOCKWISE;
-		kobukiDriveDirect(100, -100);
+		//adjust my current orientation to cumulative angle
+		state = REORIENT;
+		kobukiDriveDirect(0, 0);
 		distance = 0;
-		angle = 0;
+		//angle = 0;
 		mpu9250_start_gyro_integration();
-        } else  {
+     } else  {
           // perform state-specific actions here
           state = DRIVING;
           display_write("DRIVING", DISPLAY_LINE_0);
-	  distance = measure_distance(right_wheel_encoder_curr, right_wheel_encoder_prev);
-	  char display_str[16];
-	  snprintf(display_str, 16, "%f", distance);
+		  distance = measure_distance(right_wheel_encoder_curr, right_wheel_encoder_prev);
+		  char display_str[16];
+		  snprintf(display_str, 16, "%f", distance);
           display_write(display_str, DISPLAY_LINE_1);
-       	}
-        break; // each case needs to end with break!
+   	}
+    break; // each case needs to end with break!
       }
       case TURN_CLOCKWISE: {
-	kobukiDriveDirect(100, -100); 
-	angle = abs(mpu9250_read_gyro_integration().z_axis);
-	//transition logic
-	if (is_button_pressed(&sensors)){
-		state = OFF;
-		kobukiDriveDirect(0, 0);
-		angle = 0;
-		distance = 0;
-	 	mpu9250_stop_gyro_integration();
-	} else if (bump_left || bump_right || bump_center) {
-		display_write("REDIRECT", DISPLAY_LINE_0);
-		if (bump_left) collision_direction = -1;
-		if (bump_center) collision_direction = 0;
-		if (bump_right) collision_direction = 1;
-		state = REDIRECT;
-		distance = 0;
-		angle = 0;
-		mpu9250_stop_gyro_integration();
-		left_wheel_encoder_prev = sensors.leftWheelEncoder;
-	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
-		kobukiDriveDirect(-100, -100);
-	} else if (angle >= 90) {	
-		state = DRIVING;
-	 	mpu9250_stop_gyro_integration();
-		kobukiDriveDirect(100, 100);
-		left_wheel_encoder_prev = sensors.leftWheelEncoder;
-	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
-		distance = 0;
-		angle = 0;
-	} else {
-		state = TURN_CLOCKWISE;
-		display_write("TURNING", DISPLAY_LINE_0);
-		char display_angle[16];
-	        snprintf(display_angle, 16, "%f", angle);
-		display_write(display_angle, DISPLAY_LINE_1);	
-	}
-	break;
-      }
-      case REDIRECT: {
-	if (is_button_pressed(&sensors)){
-		state = OFF;
-		kobukiDriveDirect(0, 0);
-		angle = 0;
-		distance = 0;
-		redirect_integration = 1;
-		mpu9250_stop_gyro_integration();
-	} else if (distance < 0.1) {
-		kobukiDriveDirect(-100, -100);
- 	         display_write("DRIVING", DISPLAY_LINE_0);
-		 distance = measure_distance(right_wheel_encoder_prev, right_wheel_encoder_curr);
-	 	 char display_str[16];
-	 	 snprintf(display_str, 16, "%f", distance);
-          	display_write(display_str, DISPLAY_LINE_1);
-	} else if ((collision_direction == -1 || collision_direction == 0) && angle < 45) {
-		if (redirect_integration){ 
-			mpu9250_start_gyro_integration();
-			redirect_integration = 0;
-		}
-		kobukiDriveDirect(100, -100);
+		kobukiDriveDirect(100, -100); 
 		angle = abs(mpu9250_read_gyro_integration().z_axis);
-		display_write("TURNING", DISPLAY_LINE_0);
-		char display_angle[16];
-	        snprintf(display_angle, 16, "%f", angle);
-		display_write(display_angle, DISPLAY_LINE_1); 
-	} else if (collision_direction == 1 && angle < 45) {
-		if (redirect_integration){ 
-			mpu9250_start_gyro_integration();
-			redirect_integration = 0;
+		//transition logic
+		if (is_button_pressed(&sensors)){
+			state = OFF;
+			kobukiDriveDirect(0, 0);
+			angle = 0;
+			distance = 0;
+		 	mpu9250_stop_gyro_integration();
+		} else if (bump_left || bump_right || bump_center) {
+			display_write("REDIRECT", DISPLAY_LINE_0);
+			if (bump_left) collision_direction = -1;
+			if (bump_center) collision_direction = 0;
+			if (bump_right) collision_direction = 1;
+			state = REDIRECT;
+			distance = 0;
+			angle = 0;
+			mpu9250_stop_gyro_integration();
+			left_wheel_encoder_prev = sensors.leftWheelEncoder;
+		  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
+			kobukiDriveDirect(-100, -100);
+		} else if (angle >= 90) {	
+			state = DRIVING;
+		 	mpu9250_stop_gyro_integration();
+			kobukiDriveDirect(0, 0);
+			left_wheel_encoder_prev = sensors.leftWheelEncoder;
+		  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
+			distance = 0;
+			angle = 0;
+		} else {
+			state = TURN_CLOCKWISE;
+			display_write("TURNING", DISPLAY_LINE_0);
+			char display_angle[16];
+		    snprintf(display_angle, 16, "%f", angle);
+			display_write(display_angle, DISPLAY_LINE_1);	
 		}
-		kobukiDriveDirect(-100, 100);
-		angle = abs(mpu9250_read_gyro_integration().z_axis);	
-		display_write("TURNING", DISPLAY_LINE_0);
-		char display_angle[16];
-	        snprintf(display_angle, 16, "%f", angle);
-		display_write(display_angle, DISPLAY_LINE_1);
-	} else {
-		mpu9250_stop_gyro_integration();
-		state = DRIVING;
-		redirect_integration = 1;
-		kobukiDriveDirect(100, 100);
-		left_wheel_encoder_prev = sensors.leftWheelEncoder;
-	  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
-		distance = 0;
-		angle = 0;
-	}
-      break;
+		break;
+      }
+
+      case REDIRECT: {
+			if (is_button_pressed(&sensors)){
+				state = OFF;
+				kobukiDriveDirect(0, 0);
+				angle = 0;
+				distance = 0;
+				redirect_integration = 1;
+				mpu9250_stop_gyro_integration();
+			}  else if (bump_left || bump_center || bump_right) {
+				//restart the redirect
+				display_write("REDIRECT", DISPLAY_LINE_0);
+				if (bump_left) collision_direction = -1;
+				if (bump_center) collision_direction = 0;
+				if (bump_right) collision_direction = 1;
+				state = REDIRECT;
+				distance = 0;
+				angle = 0;
+				//mpu9250_start_gyro_integration();
+				left_wheel_encoder_prev = sensors.leftWheelEncoder;
+			  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
+				kobukiDriveDirect(-100, -100);
+			}
+
+			else if (distance < 0.1) {
+				kobukiDriveDirect(-100, -100);
+		 	     display_write("REDIRECT", DISPLAY_LINE_0);
+				 distance = measure_distance(right_wheel_encoder_prev, right_wheel_encoder_curr);
+			 	 char display_str[16];
+			 	 snprintf(display_str, 16, "%f", distance);
+		         display_write(display_str, DISPLAY_LINE_1);
+			} else if ((collision_direction == -1 || collision_direction == 0) && angle < 45) {
+				if (redirect_integration){ 
+					mpu9250_start_gyro_integration();
+					redirect_integration = 0;
+				}
+				kobukiDriveDirect(100, -100);
+				newAngle = abs(mpu9250_read_gyro_integration().z_axis);
+				cumulative_angle += abs(newAngle - angle);
+				angle = newAngle;
+				display_write("TURNING", DISPLAY_LINE_0);
+				char display_angle[16];
+			    snprintf(display_angle, 16, "%f", angle);
+				display_write(display_angle, DISPLAY_LINE_1); 
+			} else if (collision_direction == 1 && angle < 45) {
+				if (redirect_integration){ 
+					mpu9250_start_gyro_integration();
+					redirect_integration = 0;
+				}
+				kobukiDriveDirect(-100, 100);
+				newAngle = abs(mpu9250_read_gyro_integration().z_axis);
+				cumulative_angle -= abs(newAngle - angle);
+				angle = newAngle;
+				display_write("TURNING", DISPLAY_LINE_0);
+				char display_angle[16];
+			    snprintf(display_angle, 16, "%f", angle);
+				display_write(display_angle, DISPLAY_LINE_1); 
+			} 
+				else {
+				//mpu9250_stop_gyro_integration();
+
+				//return to original angle
+				//mpu9250_start_gyro_integration();
+
+				//drive forward a little bit to not hit the obstacle again
+				// kobukiDriveDirect(100, 100);
+				// nrf_delay_ms(1000);
+				// kobukiDriveDirect(0, 0);
+
+				//stop driving
+				//mpu9250_stop_gyro_integration();
+				kobukiDriveDirect(0, 0);
+				//nrf_delay_ms(2000);
+				state = DRIVING;
+				redirect_integration = 1;
+				reorient_angle = angle;
+				// kobukiDriveDirect(100, 100);
+				left_wheel_encoder_prev = sensors.leftWheelEncoder;
+			  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
+				distance = 0;
+				angle = 0;
+
+			}
+      	break;
       }
 
       // add other cases here
+
+      case CLIFF: {
+      	//make sure we stop driving
+      	kobukiDriveDirect(0, 0);
+
+      	//any other functionality here
+
+      	//enter the OFF state
+      	state = OFF;
+      	break;
+      }
+
+      case REORIENT: {
+      	// stop driving
+      	printf("Cumulative angle %f\n", cumulative_angle);
+      	if (is_button_pressed(&sensors)){
+			state = OFF;
+			kobukiDriveDirect(0, 0);
+			angle = 0;
+			distance = 0;
+			redirect_integration = 1;
+			mpu9250_stop_gyro_integration();
+		} else if(abs(cumulative_angle) > 5.0f) {
+			//printf("end2, %f\n", cumulative_angle);
+			newAngle = abs(mpu9250_read_gyro_integration().z_axis);
+			if (cumulative_angle < 0) {
+				kobukiDriveDirect(100, -100);
+				cumulative_angle += abs(newAngle - reorient_angle);
+			} else {
+				kobukiDriveDirect(-100, 100);
+				cumulative_angle -= abs(newAngle - reorient_angle);
+			}
+			reorient_angle = newAngle;
+			display_write("CUMUL. ANGLE", DISPLAY_LINE_0);
+			char display_angle[16];
+		    snprintf(display_angle, 16, "%f", cumulative_angle);
+			display_write(display_angle, DISPLAY_LINE_1);
+		} else {
+			state = DRIVING;
+
+			angle = 0;
+			reorient_angle = 0;
+			distance = 0;
+			cumulative_angle = 0;
+			redirect_integration = 1;
+			
+			left_wheel_encoder_prev = sensors.leftWheelEncoder;
+		  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
+
+		  	mpu9250_stop_gyro_integration();
+			kobukiDriveDirect(100, 100);
+		}
+		break;
+      }
 
     }
   }
