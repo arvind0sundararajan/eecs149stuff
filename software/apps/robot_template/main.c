@@ -214,16 +214,17 @@ int main(void) {
 				cumulative_angle += abs(newAngle - angle);
 				orient_angle += abs(newAngle - angle);
 				angle = newAngle;
-				
-				// display_write("TURNING", DISPLAY_LINE_0);
-				char display_angle[16];
-			    snprintf(display_angle, 16, "%f", theta);
-				display_write(display_angle, DISPLAY_LINE_1); 
 
-				if (theta < theta_min) {
+				if (abs(psi) < 5 && theta < theta_min) {
 					theta_min = theta;
 					orient_angle = 0;
 				}
+
+				// display_write("TURNING", DISPLAY_LINE_0);
+				char display_angle[16];
+			    snprintf(display_angle, 16, "%f", orient_angle);
+				display_write(display_angle, DISPLAY_LINE_1); 
+
 			} else if(abs(orient_angle) > 5) {
 				kobukiDriveDirect(-50, 50);
 				newAngle = abs(mpu9250_read_gyro_integration().z_axis);
@@ -265,8 +266,7 @@ int main(void) {
 			} else if (bump_center || bump_left || bump_right) {
 				//we hit an obstacle
 				kobukiDriveDirect(0, 0);
-				state = TURN_CLOCKWISE;
-
+				state = REORIENT;
 
 			} else  {
 	          // perform state-specific actions here
