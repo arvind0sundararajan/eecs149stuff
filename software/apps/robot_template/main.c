@@ -214,7 +214,7 @@ int main(void) {
 				orient_angle += abs(newAngle - angle);
 				angle = newAngle;
 
-				if (abs(psi) < 3 && theta < theta_min) {
+				if (abs(psi) < 5 && theta < theta_min) {
 					theta_min = theta;
 					orient_angle = 0;
 				}
@@ -241,7 +241,7 @@ int main(void) {
     	}
 
     	case DRIVING: {
-    		kobukiDriveDirect(200, 200);
+    		kobukiDriveDirect(150, 150);
 	        // transition logic for part 1
 	        /*if (is_button_pressed(&sensors) || distance >= 1) {
 			  state = OFF;
@@ -264,7 +264,7 @@ int main(void) {
 				//mpu9250_start_gyro_integration();
 				left_wheel_encoder_prev = sensors.leftWheelEncoder;
 			  	right_wheel_encoder_prev = sensors.rightWheelEncoder;
-				kobukiDriveDirect(-100, -100);
+				kobukiDriveDirect(0, 0);
 			} else if (bump_center || bump_left || bump_right) {
 				//we hit an obstacle
 				display_write("OBSTACLE", DISPLAY_LINE_0);
@@ -272,7 +272,10 @@ int main(void) {
 				state = HANDLE_OBSTACLE;
 
 				//set this so we turn back 180 degrees
-				cumulative_angle = 180.0f;
+				cumulative_angle = 180;
+				reorient_angle = 0;
+
+				mpu9250_start_gyro_integration();
 
 			} else  {
 	          // perform state-specific actions here
@@ -403,6 +406,7 @@ int main(void) {
 		         display_write(display_str, DISPLAY_LINE_1);
 			} else if ((collision_direction == -1 || collision_direction == 0) && angle < 25) {
 				if (redirect_integration){ 
+					mpu9250_stop_gyro_integration();
 					mpu9250_start_gyro_integration();
 					redirect_integration = 0;
 				}
@@ -416,6 +420,7 @@ int main(void) {
 				display_write(display_angle, DISPLAY_LINE_1); 
 			} else if (collision_direction == 1 && angle < 25) {
 				if (redirect_integration){ 
+					mpu9250_stop_gyro_integration();
 					mpu9250_start_gyro_integration();
 					redirect_integration = 0;
 				}
@@ -468,17 +473,13 @@ int main(void) {
 			distance = 0;
 			redirect_integration = 1;
 			mpu9250_stop_gyro_integration();
-		} else if(abs(cumulative_angle) > 3.0f) {
+		} else if(cumulative_angle > 3.0f) {
 			//printf("end2, %f\n", cumulative_angle);
 			newAngle = abs(mpu9250_read_gyro_integration().z_axis);
-			if (cumulative_angle < 0) {
-				kobukiDriveDirect(50, -50);
-				cumulative_angle += abs(newAngle - reorient_angle);
-			} else {
-				kobukiDriveDirect(-50, 50);
-				cumulative_angle -= abs(newAngle - reorient_angle);
-			}
+			kobukiDriveDirect(-50, 50);
+			cumulative_angle -= abs(newAngle - reorient_angle);
 			reorient_angle = newAngle;
+
 			display_write("CUMUL. ANGLE", DISPLAY_LINE_0);
 			char display_angle[16];
 		    snprintf(display_angle, 16, "%f", cumulative_angle);
