@@ -66,14 +66,25 @@ float update_dist(float dist, uint16_t prev_encoder, bool is_forward){
 
 void drive_kobuki(bool is_forward){
 	// Your code here
+	if (is_forward) {
+		kobukiDriveDirect(100, 100);
+	} else {
+		kobukiDriveDirect(-100, -100);
+	}
 }
 
 void stop_kobuki(){
 	// Your code here
+	kobukiDriveDirect(0, 0);
 }
 
 void turn_kobuki(bool is_clockwise){
 	// Your code here
+	if (is_clockwise) {
+		kobukiDriveDirect(50, -50);
+	} else {
+		kobukiDriveDirect(-50, 50);
+	}
 }
 
 bool is_left_bumper(){
